@@ -22,20 +22,25 @@ class ContactRepository:
     async def create_contact(self, body: ContactModel):
         new_contact = Contact(**body.model_dump())
         self.db.add(new_contact)
+        await self.db.flush() 
         await self.db.refresh(new_contact)
         return new_contact
     
     async def update_contact(self, id:int, body: ContactModel):
         contact = await self.get_contact_by_id(id)
-        if contact:
-            for key, value in body.model_dump().items():
-                setattr(contact, key, value)
-            await self.db.refresh(contact)
-            return contact
+        if contact is None:
+            return None
+        for key, value in body.model_dump().items():
+            setattr(contact, key, value)
+        await self.db.flush() 
+        await self.db.refresh(contact)
+        return contact
 
     async def delete_contact(self, id:int):
         contact = await self.get_contact_by_id(id)
-        if contact:
-            await self.db.delete(contact)
+        if contact is None:
+            return None
+        await self.db.delete(contact)
+        return contact
     
     
