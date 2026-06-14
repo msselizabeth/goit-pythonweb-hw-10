@@ -1,8 +1,9 @@
 import asyncio
 from datetime import date
-from app.db.db_connection import session_manager
-from app.db.models import Contact
 
+from app.db.db_connection import session_manager
+from app.db.models import Contact, User
+from app.services.auth import hash_helper
 
 contacts_data = [
     {
@@ -130,10 +131,34 @@ contacts_data = [
 
 async def seed():
     async with session_manager.session() as session:
+        # Create a test user
+        test_email = "test@example.com"
+        test_password = "password123"
+        
+        # Hash the password using our service
+        hashed_password = hash_helper.get_password_hash(test_password)
+        
+        # Create user and force is_verified to True so we can log in
+        test_user = User(
+            email=test_email, 
+            password=hashed_password, 
+            is_verified=True
+        )
+        session.add(test_user)
+        
+        # Commit to generate the user.id in the database
+        await session.commit()
+        await session.refresh(test_user)
+        print(f"Created test user: {test_email} / {test_password}")
+
+        # Add contacts and link them to the test user
         for data in contacts_data:
-            contact = Contact(**data)
+            # Inject user_id into the contact data
+            contact = Contact(**data, user_id=test_user.id)
             session.add(contact)
-        print(f"Seeded {len(contacts_data)} contacts.")
+            
+        await session.commit()
+        print(f"Seeded {len(contacts_data)} contacts for user {test_email}.")
 
 
 if __name__ == "__main__":

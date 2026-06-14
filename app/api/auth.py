@@ -6,7 +6,7 @@ from jose import jwt, JWTError
 
 from app.db.db_connection import get_db
 from app.repository.users import UserRepository
-from app.services.auth import create_access_token, get_service
+from app.services.auth import create_access_token
 from app.schemas.users import UserCreate, UserResponse
 from app.services.users import UserService
 from app.services.email import send_verification_email
@@ -17,6 +17,10 @@ class AuthenticationResponse(BaseModel):
     token_type: str
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+def get_service(db: AsyncSession = Depends(get_db)) -> UserService:
+    repository = UserRepository(db)
+    return UserService(repository)
 
 @router.post("/signup", response_model=UserResponse, status_code=201)
 async def signup_user(
