@@ -75,6 +75,7 @@ async def get_current_user(
                     "email": user.email,
                     "is_verified": user.is_verified,
                     "avatar_url": user.avatar_url,
+                    "role": user.role.value
                 }
             ),
             ex=900
