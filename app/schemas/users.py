@@ -30,4 +30,5 @@ class UserResponse(BaseModel):
     email: str
     avatar_url: str | None
     is_verified: bool
+    role: str
     model_config = ConfigDict(from_attributes=True)
