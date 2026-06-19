@@ -6,11 +6,12 @@ from jose import jwt, JWTError
 
 from app.db.db_connection import get_db
 from app.repository.users import UserRepository
-from app.services.auth import create_access_token
-from app.schemas.users import UserCreate, UserResponse
+from app.services.auth import create_access_token, hash_helper
+from app.schemas.users import UserCreate, UserResponse, ForgotPasswordRequest, ResetPasswordRequest
 from app.services.users import UserService
-from app.services.email import send_verification_email
+from app.services.email import send_verification_email, send_password_reset_email
 from app.config import settings
+from app.services.cache import get_redis_client
 
 class AuthenticationResponse(BaseModel):
     access_token: str
@@ -71,3 +72,51 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
     await repository.verify_user_email(email)
     await db.commit()
     return {"message": "Email verified successfully."}
+
+@router.post("/forgot-password")
+async def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,  
+    db: AsyncSession = Depends(get_db),
+):
+    repository = UserRepository(db)
+    user = await repository.get_user_by_email(body.email)
+
+    if user is None:
+        return {"message": "If this email exists, a reset link has been sent."}
+
+    token = create_access_token(data={"sub": user.email}, expires_delta=900)
+    base_url = str(request.base_url).rstrip("/")
+    await send_password_reset_email(user.email, f"{base_url}/api/", token)
+    
+    return {"message": "If this email exists, a reset link has been sent."}
+
+
+@router.post("/reset-password/{token}")
+async def reset_password(
+    token: str,
+    body: ResetPasswordRequest,  
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        email = payload.get("sub")
+        if email is None:
+            raise HTTPException(status_code=400, detail="Invalid reset token.")
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Reset token has expired or is invalid.")
+    
+    repository = UserRepository(db)
+    user = await repository.get_user_by_email(email)
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    hashed_password = hash_helper.get_password_hash(body.new_password)
+    user.password = hashed_password
+    await db.commit()
+
+    redis = await get_redis_client()
+    await redis.delete(f"user:{email}")
+
+    return {"message": "Password updated successfully."}
