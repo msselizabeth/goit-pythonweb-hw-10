@@ -8,6 +8,7 @@ from jose import jwt, JWTError
 from app.config import settings
 from app.db.db_connection import get_db
 from app.db.models import User
+from app.schemas.users import UserResponse
 from app.repository.users import UserRepository
 from app.services.cache import get_redis_client
 import json
@@ -38,7 +39,7 @@ def create_access_token(data: dict, expires_delta: Optional[float] = None):
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)
-) -> User:
+) -> UserResponse:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -59,27 +60,27 @@ async def get_current_user(
     redis = await get_redis_client()
     cache = await redis.get(f"user:{email}")
     if cache:
-        return json.loads(cache)
+        return UserResponse(**json.loads(cache))
     else:
         repository = UserRepository(db)
-        print("DB hit  checking cache")
+        
         user = await repository.get_user_by_email(email)
         if user is None:
             raise credentials_exception
+        
+        user_response = UserResponse.model_validate(user)
 
         await redis.set(
             f"user:{email}",
-            json.dumps(
-                {
-                    "id": user.id,
-                    "email": user.email,
-                    "is_verified": user.is_verified,
-                    "avatar_url": user.avatar_url,
-                    "role": user.role.value
-                }
-            ),
+            user_response.model_dump_json(),
             ex=900
             
         )
-        # add "role": user.role later, sill need to add it to the model
-        return user
+        
+        return user_response
+
+
+def require_admin(current_user: User = Depends(get_current_user)):
+    if not current_user.role == "admin":
+        raise HTTPException(403, "Access denied.")
+    return current_user

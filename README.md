@@ -55,6 +55,11 @@ docker compose exec app alembic upgrade head
 
 docker compose exec app python seed.py
 
+```# Test user(admin rights):
+test_email = "test@example.com"
+test_password = "password123"
+```
+
 ### 5. Open API docs
 
 http://localhost:8001/docs
