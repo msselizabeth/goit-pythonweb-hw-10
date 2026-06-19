@@ -14,6 +14,13 @@ from app.api.users import router as users_router, limiter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Manage application startup and shutdown.
+
+    Closes the database session manager when the app shuts down.
+
+    :param app: The FastAPI application instance.
+    """
     yield
     await session_manager.close()
 
@@ -37,6 +44,13 @@ app.include_router(contacts_router, prefix="/api")
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
+    """
+    Add an X-Process-Time header showing how long the request took.
+
+    :param request: Incoming HTTP request.
+    :param call_next: The next handler in the middleware chain.
+    :return: The response, with the processing time header added.
+    """
     start_time = time.time()
     response = await call_next(request)
     process_time = time.time() - start_time
@@ -45,6 +59,13 @@ async def add_process_time_header(request: Request, call_next):
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
+    """
+    Format HTTPException responses as a consistent error JSON shape.
+
+    :param request: Incoming HTTP request.
+    :param exc: The raised HTTPException.
+    :return: A JSON response with error details.
+    """
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": exc.detail, "status": exc.status_code},
@@ -53,6 +74,13 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Format request validation errors as a consistent error JSON shape.
+
+    :param request: Incoming HTTP request.
+    :param exc: The raised validation error.
+    :return: A JSON response with validation error details.
+    """
     return JSONResponse(
         status_code=422,
         content={"error": "Validation error", "details": exc.errors()},
@@ -61,6 +89,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Catch-all handler for unhandled exceptions.
+
+    :param request: Incoming HTTP request.
+    :param exc: The unhandled exception.
+    :return: A generic 500 error response.
+    """
     return JSONResponse(
         status_code=500,
         content={"error": "Internal server error"},
@@ -69,4 +104,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/api/health")
 async def healthcheck():
+    """
+    Simple healthcheck endpoint.
+
+    :return: A status message confirming the API is running.
+    """
     return {"status": "ok"}
